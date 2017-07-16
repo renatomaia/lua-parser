@@ -60,7 +60,6 @@ opid:  -- includes additional operators from Lua 5.3 and all relational operator
 ]]
 
 local lpeg = require "lpeglabel"
-local grammar = require "lua-parser.grammar"
 
 lpeg.locale(lpeg)
 
@@ -71,8 +70,8 @@ local Lc, T = lpeg.Lc, lpeg.T
 
 local alpha, digit, alnum = lpeg.alpha, lpeg.digit, lpeg.alnum
 local xdigit = lpeg.xdigit
-local space = lpeg.space
 
+local grammar = require "lua-parser.grammar"
 
 -- error message auxiliary functions
 
@@ -184,18 +183,6 @@ end
 
 
 -- regular combinators and auxiliary functions
-
-local function token (patt)
-  return patt * V"Skip"
-end
-
-local function sym (str)
-  return token(P(str))
-end
-
-local function kw (str)
-  return token(P(str) * -V"IdRest")
-end
 
 local function tagC (tag, patt)
   return Ct(Cg(Cp(), "pos") * Cg(Cc(tag), "tag") * patt)
@@ -347,8 +334,7 @@ local G = fill(grammar, { V"Lua",
 
   Ident     = C(grammar.Ident);
 
-  Number   = tagC("Number", grammar.Number);
-  NumVal   = grammar.NumVal / tonumber;
+  Number   = tagC("Number", grammar.Number / tonumber);
 
   String    = tagC("String", grammar.String);
 
@@ -387,31 +373,31 @@ local G = fill(grammar, { V"Lua",
   LongStr  = grammar.LongStr / function (s, eqs) return s end;
   LStrData = C(grammar.LStrData);
 
-  OrOp      = kw("or")   / "or";
-  AndOp     = kw("and")  / "and";
-  RelOp     = sym("~=")  / "ne"
-            + sym("==")  / "eq"
-            + sym("<=")  / "le"
-            + sym(">=")  / "ge"
-            + sym("<")   / "lt"
-            + sym(">")   / "gt";
-  BOrOp     = sym("|")   / "bor";
-  BXorOp    = sym("~" * -P"=") / "bxor";
-  BAndOp    = sym("&")   / "band";
-  ShiftOp   = sym("<<")  / "shl"
-            + sym(">>")  / "shr";
-  ConcatOp  = sym("..")  / "concat";
-  AddOp     = sym("+")   / "add"
-            + sym("-")   / "sub";
-  MulOp     = sym("*")   / "mul"
-            + sym("//")  / "idiv"
-            + sym("/")   / "div"
-            + sym("%")   / "mod";
-  UnaryOp   = kw("not")  / "not"
-            + sym("-")   / "unm"
-            + sym("#")   / "len"
-            + sym("~")   / "bnot";
-  PowOp     = sym("^")   / "pow";
+  OrOp      = grammar.OrOp      / "or";
+  AndOp     = grammar.AndOp     / "and";
+  NotEqOp   = grammar.NotEqOp   / "ne";
+  EqualOp   = grammar.EqualOp   / "eq";
+  LessEqOp  = grammar.LessEqOp  / "le";
+  GreatEqOp = grammar.GreatEqOp / "ge";
+  LesserOp  = grammar.LesserOp  / "lt";
+  GreaterOp = grammar.GreaterOp / "gt";
+  BOrOp     = grammar.BOrOp     / "bor";
+  BXorOp    = grammar.BXorOp    / "bxor";
+  BAndOp    = grammar.BAndOp    / "band";
+  LShiftOp  = grammar.LShiftOp  / "shl";
+  RShiftOp  = grammar.RShiftOp  / "shr";
+  ConcatOp  = grammar.ConcatOp  / "concat";
+  SumOp     = grammar.SumOp     / "add";
+  SubOp     = grammar.SubOp     / "sub";
+  MulOp     = grammar.MulOp     / "mul";
+  IntDivOp  = grammar.IntDivOp  / "idiv";
+  DivOp     = grammar.DivOp     / "div";
+  ModOp     = grammar.ModOp     / "mod";
+  NotOp     = grammar.NotOp     / "not";
+  NegOp     = grammar.NegOp     / "unm";
+  SizeOp    = grammar.SizeOp    / "len";
+  BNotOp    = grammar.BNotOp    / "bnot";
+  PowOp     = grammar.PowOp     / "pow";
 })
 
 local parser = {}
