@@ -71,116 +71,7 @@ local Lc, T = lpeg.Lc, lpeg.T
 local alpha, digit, alnum = lpeg.alpha, lpeg.digit, lpeg.alnum
 local xdigit = lpeg.xdigit
 
-local grammar = require "lua-parser.grammar"
-
--- error message auxiliary functions
-
-local labels = {
-  { "ErrExtra", "unexpected character(s), expected EOF" },
-  { "ErrInvalidStat", "unexpected token, invalid start of statement" },
-
-  { "ErrEndIf", "expected 'end' to close the if statement" },
-  { "ErrExprIf", "expected a condition after 'if'" },
-  { "ErrThenIf", "expected 'then' after the condition" },
-  { "ErrExprEIf", "expected a condition after 'elseif'" },
-  { "ErrThenEIf", "expected 'then' after the condition" },
-
-  { "ErrEndDo", "expected 'end' to close the do block" },
-  { "ErrExprWhile", "expected a condition after 'while'" },
-  { "ErrDoWhile", "expected 'do' after the condition" },
-  { "ErrEndWhile", "expected 'end' to close the while loop" },
-  { "ErrUntilRep", "expected 'until' at the end of the repeat loop" },
-  { "ErrExprRep", "expected a conditions after 'until'" },
-
-  { "ErrForRange", "expected a numeric or generic range after 'for'" },
-  { "ErrEndFor", "expected 'end' to close the for loop" },
-  { "ErrExprFor1", "expected a starting expression for the numeric range" },
-  { "ErrCommaFor", "expected ',' to split the start and end of the range" },
-  { "ErrExprFor2", "expected an ending expression for the numeric range" },
-  { "ErrExprFor3", "expected a step expression for the numeric range after ','" },
-  { "ErrInFor", "expected '=' or 'in' after the variable(s)" },
-  { "ErrEListFor", "expected one or more expressions after 'in'" },
-  { "ErrDoFor", "expected 'do' after the range of the for loop" },
-
-  { "ErrDefLocal", "expected a function definition or assignment after local" },
-  { "ErrNameLFunc", "expected a function name after 'function'" },
-  { "ErrEListLAssign", "expected one or more expressions after '='" },
-  { "ErrEListAssign", "expected one or more expressions after '='" },
-
-  { "ErrFuncName", "expected a function name after 'function'" },
-  { "ErrNameFunc1", "expected a function name after '.'" },
-  { "ErrNameFunc2", "expected a method name after ':'" },
-  { "ErrOParenPList", "expected '(' for the parameter list" },
-  { "ErrCParenPList", "expected ')' to close the parameter list" },
-  { "ErrEndFunc", "expected 'end' to close the function body" },
-  { "ErrParList", "expected a variable name or '...' after ','" },
-
-  { "ErrLabel", "expected a label name after '::'" },
-  { "ErrCloseLabel", "expected '::' after the label" },
-  { "ErrGoto", "expected a label after 'goto'" },
-  { "ErrRetList", "expected an expression after ',' in the return statement" },
-
-  { "ErrVarList", "expected a variable name after ','" },
-  { "ErrExprList", "expected an expression after ','" },
-
-  { "ErrOrExpr", "expected an expression after 'or'" },
-  { "ErrAndExpr", "expected an expression after 'and'" },
-  { "ErrRelExpr", "expected an expression after the relational operator" },
-  { "ErrBOrExpr", "expected an expression after '|'" },
-  { "ErrBXorExpr", "expected an expression after '~'" },
-  { "ErrBAndExpr", "expected an expression after '&'" },
-  { "ErrShiftExpr", "expected an expression after the bit shift" },
-  { "ErrConcatExpr", "expected an expression after '..'" },
-  { "ErrAddExpr", "expected an expression after the additive operator" },
-  { "ErrMulExpr", "expected an expression after the multiplicative operator" },
-  { "ErrUnaryExpr", "expected an expression after the unary operator" },
-  { "ErrPowExpr", "expected an expression after '^'" },
-
-  { "ErrExprParen", "expected an expression after '('" },
-  { "ErrCParenExpr", "expected ')' to close the expression" },
-  { "ErrNameIndex", "expected a field name after '.'" },
-  { "ErrExprIndex", "expected an expression after '['" },
-  { "ErrCBracketIndex", "expected ']' to close the indexing expression" },
-  { "ErrNameMeth", "expected a method name after ':'" },
-  { "ErrMethArgs", "expected some arguments for the method call (or '()')" },
-
-  { "ErrArgList", "expected an expression after ',' in the argument list" },
-  { "ErrCParenArgs", "expected ')' to close the argument list" },
-
-  { "ErrCBraceTable", "expected '}' to close the table constructor" },
-  { "ErrEqField", "expected '=' after the table key" },
-  { "ErrExprField", "expected an expression after '='" },
-  { "ErrExprFKey", "expected an expression after '[' for the table key" },
-  { "ErrCBracketFKey", "expected ']' to close the table key" },
-
-  { "ErrDigitHex", "expected one or more hexadecimal digits after '0x'" },
-  { "ErrDigitDeci", "expected one or more digits after the decimal point" },
-  { "ErrDigitExpo", "expected one or more digits for the exponent" },
-
-  { "ErrQuote", "unclosed string" },
-  { "ErrHexEsc", "expected exactly two hexadecimal digits after '\\x'" },
-  { "ErrOBraceUEsc", "expected '{' after '\\u'" },
-  { "ErrDigitUEsc", "expected one or more hexadecimal digits for the UTF-8 code point" },
-  { "ErrCBraceUEsc", "expected '}' after the code point" },
-  { "ErrEscSeq", "invalid escape sequence" },
-  { "ErrCloseLStr", "unclosed long string" },
-}
-
-local function throw(label)
-  label = "Err" .. label
-  for i, labelinfo in ipairs(labels) do
-    if labelinfo[1] == label then
-      return T(i)
-    end
-  end
-
-  error("Label not found: " .. label)
-end
-
-local function expect (patt, label)
-  return patt + throw(label)
-end
-
+local lua53 = require "lua-parser.grammar"
 
 -- regular combinators and auxiliary functions
 
@@ -260,7 +151,27 @@ local function fill(src, dst)
   return dst
 end
 
--- grammar
+local escval = {
+  ["a"] = "\a",
+  ["b"] = "\b",
+  ["f"] = "\f",
+  ["n"] = "\n",
+  ["r"] = "\r",
+  ["t"] = "\t",
+  ["v"] = "\v",
+  ["\n"] = "\n",
+  ["\r"] = "\n",
+  ["\\"] = "\\",
+  ["\""] = "\"",
+  ["\'"] = "\'",
+}
+
+-- true max is \u{10FFFF}
+-- utf8.char needs Lua 5.3
+-- string.char works only until \u{FF}
+local utf8char = utf8 and utf8.char or string.char
+
+local grammar = lua53.grammar
 local G = fill(grammar, { V"Lua",
   Block       = tagC("Block", grammar.Block);
   IfStat      = tagC("If", grammar.IfStat);
@@ -305,14 +216,6 @@ local G = fill(grammar, { V"Lua",
   UnaryExpr   = grammar.UnaryExpr / unaryOp;
   PowExpr     = grammar.PowExpr / binaryOp;
 
-  Dots = tagC("Dots", grammar.Dots);
-
-  Nil = tagC("Nil", grammar.Nil);
-
-  Boolean = tagC("Boolean", grammar.Boolean);
-  False   = grammar.False * Cc(false);
-  True    = grammar.True * Cc(true);
-
   CallExpr  = Cmt(V"SuffixedExpr", function(s, i, exp, ...) return exp.tag == "Call" or exp.tag == "Invoke", exp end);
   VarExpr   = Cmt(V"SuffixedExpr", function(s, i, exp, ...) return exp.tag == "Id" or exp.tag == "Index", exp end);
 
@@ -334,45 +237,28 @@ local G = fill(grammar, { V"Lua",
 
   Ident     = C(grammar.Ident);
 
-  Number   = tagC("Number", grammar.Number / tonumber);
+  Nil = tagC("Nil", grammar.Nil);
 
-  String    = tagC("String", grammar.String);
+  Boolean = tagC("Boolean", grammar.Boolean);
+  False   = grammar.False * Cc(false);
+  True    = grammar.True * Cc(true);
 
-  EscSeq = P"\\" / ""  -- remove backslash
-         * ( P"a" / "\a"
-           + P"b" / "\b"
-           + P"f" / "\f"
-           + P"n" / "\n"
-           + P"r" / "\r"
-           + P"t" / "\t"
-           + P"v" / "\v"
-           
-           + P"\n" / "\n"
-           + P"\r" / "\n"
-           
-           + P"\\" / "\\"
-           + P"\"" / "\""
-           + P"\'" / "\'"
-           
-           + grammar.EscSpc / ""
-           
-           + grammar.ChaDec / tonumber / string.char
-           + P"x" * expect(C(grammar.ChaHex), "HexEsc") * Cc(16) / tonumber / string.char
-           + P"u" * expect("{", "OBraceUEsc")
-                  * expect(C(grammar.UniHex), "DigitUEsc") * Cc(16)
-                  * expect("}", "CBraceUEsc")
-                  / tonumber 
-                  / (utf8 and utf8.char or string.char)  -- true max is \u{10FFFF}
-                                                         -- utf8.char needs Lua 5.3
-                                                         -- string.char works only until \u{FF}
-           
-           + throw("EscSeq")
-           );
-  QStrData = Cs(grammar.QStrData);
-  ShortStr = grammar.ShortStr / function (s, quote) return s end;
-  LongStr  = grammar.LongStr / function (s, eqs) return s end;
-  LStrData = C(grammar.LStrData);
+  Number = tagC("Number", grammar.Number / tonumber);
 
+  -- Strings
+  String        = tagC("String", grammar.String);
+  DbSqBkData    = C(grammar.DbSqBkData); -- capture only the contents in 'LongString'
+  QuoteData     = Cs(grammar.QuoteData); -- capture contents replacing escapes in 'QuoteString'
+  QtEscSymbol   = grammar.QtEscSymbol / ""; -- remove backslash
+  QtEscChar     = grammar.QtEscChar / escval;
+  QtEscSpace    = grammar.QtEscSpace / ""; -- remove escaped space
+  QtEscHexa     = grammar.QtEscHexa * Cc(16) / tonumber / string.char;
+  QtEscUnicode  = grammar.QtEscUnicode * Cc(16) / tonumber / utf8char;
+  CharCodeDec   = grammar.CharCodeDec / tonumber / string.char;
+  CharCodeHex   = C(grammar.CharCodeHex); -- capture only hex code in 'QtEscHexa'
+  UnicodeHex    = C(grammar.UnicodeHex); -- capture only hex code in 'QtEscUnicode'
+
+  -- Operators
   OrOp      = grammar.OrOp      / "or";
   AndOp     = grammar.AndOp     / "and";
   NotEqOp   = grammar.NotEqOp   / "ne";
@@ -387,7 +273,7 @@ local G = fill(grammar, { V"Lua",
   LShiftOp  = grammar.LShiftOp  / "shl";
   RShiftOp  = grammar.RShiftOp  / "shr";
   ConcatOp  = grammar.ConcatOp  / "concat";
-  SumOp     = grammar.SumOp     / "add";
+  AddOp     = grammar.AddOp     / "add";
   SubOp     = grammar.SubOp     / "sub";
   MulOp     = grammar.MulOp     / "mul";
   IntDivOp  = grammar.IntDivOp  / "idiv";
@@ -398,6 +284,8 @@ local G = fill(grammar, { V"Lua",
   SizeOp    = grammar.SizeOp    / "len";
   BNotOp    = grammar.BNotOp    / "bnot";
   PowOp     = grammar.PowOp     / "pow";
+
+  Dots = tagC("Dots", grammar.Dots);
 })
 
 local parser = {}
@@ -409,10 +297,10 @@ local syntaxerror = validator.syntaxerror
 function parser.parse (subject, filename)
   local errorinfo = { subject = subject, filename = filename }
   lpeg.setmaxstack(1000)
-  local ast, label, sfail = lpeg.match(G, subject, nil, errorinfo)
+  local ast, erridx, sfail = lpeg.match(G, subject, nil, errorinfo)
   if not ast then
     local errpos = #subject-#sfail+1
-    local errmsg = labels[label][2]
+    local errmsg = lua53.errors[erridx][2]
     return ast, syntaxerror(errorinfo, errpos, errmsg)
   end
   return validate(ast, errorinfo)

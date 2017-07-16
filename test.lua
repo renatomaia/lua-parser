@@ -117,6 +117,17 @@ e = [=[
 r = parse(s)
 assert(r == fixint(e))
 
+s = [=[
+f1 = 0x1P1
+f2 = 0x1p-1
+]=]
+e = [=[
+{ `Set{ { `Id "f1" }, { `Number "2" } }, `Set{ { `Id "f2" }, { `Number "0.5" } } }
+]=]
+
+r = parse(s)
+assert(r == fixint(e), r)
+
 -- integers
 
 s = [=[
