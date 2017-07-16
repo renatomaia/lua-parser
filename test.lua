@@ -2508,17 +2508,17 @@ s = [=[
 function foo.() end
 ]=]
 e = [=[
-test.lua:1:14: syntax error, expected a function name after '.'
+test.lua:1:14: syntax error, expected a field name after '.'
 ]=]
 
 r = parse(s)
-assert(r == e)
+assert(r == e, r)
 
 s = [=[
 function foo.1() end
 ]=]
 e = [=[
-test.lua:1:14: syntax error, expected a function name after '.'
+test.lua:1:14: syntax error, expected a field name after '.'
 ]=]
 
 r = parse(s)

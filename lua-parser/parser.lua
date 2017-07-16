@@ -102,6 +102,11 @@ local function tagDo (block)
   return block
 end
 
+local function fixForStat (spec, body)
+  table.insert(spec, body)
+  return spec
+end
+
 local function fixFuncStat (func)
   if func[1].is_method then table.insert(func[2][1], 1, { tag = "Id", [1] = "self" }) end
   func[1] = {func[1]}
@@ -120,6 +125,7 @@ local function addDots (params, dots)
 end
 
 local function insertIndex (t, index)
+  if index.tag == "DotIndex" then index = index[1] end
   return { tag = "Index", pos = t.pos, [1] = t, [2] = index }
 end
 
@@ -180,17 +186,20 @@ local G = fill(grammar, { V"Lua",
   WhileStat   = tagC("While", grammar.WhileStat);
   RepeatStat  = tagC("Repeat", grammar.RepeatStat);
 
-  ForNum      = tagC("Fornum", grammar.ForNum);
-  ForIn       = tagC("Forin", grammar.ForIn);
+  ForStat     = grammar.ForStat / fixForStat;
+  ForNumSpec  = tagC("Fornum", grammar.ForNumSpec);
+  ForInSpec   = tagC("Forin", grammar.ForInSpec);
 
   LocalFunc   = tagC("Localrec", grammar.LocalFunc) / fixFuncStat;
-  LocalAssign = tagC("Local", grammar.LocalAssign) / fixLocalAssign;
+  LocalVar    = tagC("Local", grammar.LocalVar) / fixLocalAssign;
+
   Assignment  = tagC("Set", grammar.Assignment);
 
   FuncStat    = tagC("Set", grammar.FuncStat) / fixFuncStat;
-  FuncName    = Cf(grammar.FuncNamePfx, insertIndex) * grammar.FuncNameSfx / markMethod;
+  FuncName    = Cf(V"Name" * V"Skip" * (V"FieldIndex")^0, insertIndex)
+              * (V"MethodIndex")^-1 / markMethod;
   FuncBody    = tagC("Function", grammar.FuncBody);
-  ParList     = grammar.ParamDecl / addDots
+  FuncParSpec = grammar.FuncParName / addDots
               + Ct(V"Dots")
               + Ct(Cc()); -- Cc({}) generates a bug since the {} would be shared across parses
 
@@ -221,28 +230,35 @@ local G = fill(grammar, { V"Lua",
 
   SuffixedExpr  = Cf(grammar.SuffixedExpr, makeIndexOrCall);
   ParenExpr     = tagC("Paren", grammar.ParenExpr);
-  DotIndex      = tagC("DotIndex", grammar.DotIndex);
+  FieldIndex    = tagC("DotIndex", grammar.FieldIndex);
   ArrayIndex    = tagC("ArrayIndex", grammar.ArrayIndex);
   Invoke        = tagC("Invoke", Cg(grammar.Invoke));
   Call          = tagC("Call", grammar.Call);
 
-  Table      = tagC("Table", grammar.Table);
-  Field      = tagC("Pair", grammar.Field);
+  Table        = tagC("Table", grammar.Table);
+  TabEntryPair = tagC("Pair", grammar.TabEntryPair);
 
-  Id     = tagC("Id", grammar.Id);
-  StrId  = tagC("String", grammar.StrId);
+  Name  = tagC("Id", grammar.Name);
+  Field = tagC("String", grammar.Field);
 
-  -- lexer
-  LongComment = grammar.LongComment / function () return end;
+  -- Lexer ---------------------------------------------------------------------
 
-  Ident     = C(grammar.Ident);
+  -- Comments
+  LongComment = grammar.LongComment / function () return end; -- discard capture in 'DbSqBkData'
 
-  Nil = tagC("Nil", grammar.Nil);
+  -- Identifiers
+  Identifier = C(grammar.Identifier);
 
+  -- Special Values
+  Dots = tagC("Dots", grammar.Dots);
+  Nil  = tagC("Nil", grammar.Nil);
+
+  -- Booleans
   Boolean = tagC("Boolean", grammar.Boolean);
   False   = grammar.False * Cc(false);
   True    = grammar.True * Cc(true);
 
+  -- Numbers
   Number = tagC("Number", grammar.Number / tonumber);
 
   -- Strings
@@ -284,8 +300,6 @@ local G = fill(grammar, { V"Lua",
   SizeOp    = grammar.SizeOp    / "len";
   BNotOp    = grammar.BNotOp    / "bnot";
   PowOp     = grammar.PowOp     / "pow";
-
-  Dots = tagC("Dots", grammar.Dots);
 })
 
 local parser = {}
