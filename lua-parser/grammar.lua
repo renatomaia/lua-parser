@@ -123,11 +123,8 @@ local function sV (n) return V"Skip" * V(n) end
 local function sVs (n) return sV(n) * V"Skip" end
 
 local function sepBy (patt, sepname, label)
-  if label then
-    return patt * Cg(sVs(sepname) * expect(patt, label))^0 -- TODO: remove this capture
-  else
-    return patt * Cg(sVs(sepname) * patt)^0
-  end
+  local other = label==nil and patt or expect(patt, label)
+  return patt * (sVs(sepname) * other)^0
 end
 
 local function commaSep (patt, label)
