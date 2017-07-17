@@ -196,8 +196,8 @@ local G = fill(grammar, { V"Lua",
   Assignment  = tagC("Set", grammar.Assignment);
 
   FuncStat    = tagC("Set", grammar.FuncStat) / fixFuncStat;
-  FuncName    = Cf(V"Name" * V"Skip" * (V"FieldIndex")^0, insertIndex)
-              * (V"MethodIndex")^-1 / markMethod;
+  FuncName    = Cf(V"Name" * (V"Skip" * V"FieldIndex")^0, insertIndex)
+              * (V"Skip" * V"MethodIndex")^-1 / markMethod;
   FuncBody    = tagC("Function", grammar.FuncBody);
   FuncParSpec = grammar.FuncParName / addDots
               + Ct(V"Dots")
@@ -225,15 +225,12 @@ local G = fill(grammar, { V"Lua",
   UnaryExpr   = grammar.UnaryExpr / unaryOp;
   PowExpr     = grammar.PowExpr / binaryOp;
 
-  CallExpr  = Cmt(V"SuffixedExpr", function(s, i, exp, ...) return exp.tag == "Call" or exp.tag == "Invoke", exp end);
-  VarExpr   = Cmt(V"SuffixedExpr", function(s, i, exp, ...) return exp.tag == "Id" or exp.tag == "Index", exp end);
-
   SuffixedExpr  = Cf(grammar.SuffixedExpr, makeIndexOrCall);
   ParenExpr     = tagC("Paren", grammar.ParenExpr);
   FieldIndex    = tagC("DotIndex", grammar.FieldIndex);
   ArrayIndex    = tagC("ArrayIndex", grammar.ArrayIndex);
-  Invoke        = tagC("Invoke", Cg(grammar.Invoke));
-  Call          = tagC("Call", grammar.Call);
+  MethodCall    = tagC("Invoke", Cg(grammar.MethodCall));
+  FuncCall      = tagC("Call", grammar.FuncCall);
 
   Table        = tagC("Table", grammar.Table);
   TabEntryPair = tagC("Pair", grammar.TabEntryPair);

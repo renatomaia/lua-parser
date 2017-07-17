@@ -117,31 +117,28 @@ end
 
 -- regular combinators and auxiliary functions
 
-local function kw (str)
-  return P(str) * -V"IdentRest"
-end
-
-local function tk (name)
-  return V(name) * V"Skip"
-end
+local function kw (w) return P(w) * -V"IdentRest" end
+local function Vs (n) return V(n) * V"Skip" end
+local function sV (n) return V"Skip" * V(n) end
+local function sVs (n) return sV(n) * V"Skip" end
 
 local function sepBy (patt, sep, label)
   if label then
-    return patt * Cg(sep * expect(patt, label))^0 -- TODO: remove this capture
+    return patt * Cg(V"Skip" * sep * V"Skip" * expect(patt, label))^0 -- TODO: remove this capture
   else
-    return patt * Cg(sep * patt)^0
+    return patt * Cg(V"Skip" * sep * V"Skip" * patt)^0
   end
 end
 
 local function commaSep (patt, label)
-  return sepBy(patt, tk"Comma", label)
+  return sepBy(patt, V"Comma", label)
 end
 
 local grammar = { V"Lua",
-  Lua      = V"Shebang"^-1 * V"Skip" * V"Block" * expect(P(-1), "Extra");
+  Lua      = V"Shebang"^-1 * sV"Block" * expect(P(-1), "Extra");
   Shebang  = P"#!" * (P(1) - P"\n")^0;
 
-  Block       = V"Stat"^0 * V"RetStat"^-1;
+  Block       = Vs"Stat"^0 * Vs"RetStat"^-1;
   Stat        = V"IfStat"
               + V"DoStat"
               + V"WhileStat"
@@ -154,7 +151,7 @@ local grammar = { V"Lua",
               + V"GoToStat"
               + V"CallExpr"
               + V"Assignment"
-              + tk"Semicolon"
+              + V"Semicolon"
               + -V"BlockEnd" * throw("InvalidStat");
   BlockEnd    = P"return" + "end" + "elseif" + "else" + "until" + -1;
 
@@ -162,137 +159,150 @@ local grammar = { V"Lua",
   IfStat     = V"IfPart"
              * V"ElseIfPart"^0
              * V"ElsePart"^-1
-             * expect(tk"EndCmd", "EndIf");
-  IfPart     = tk"IfCmd"
-             * expect(V"Expression", "ExprIf")
-             * expect(tk"ThenCmd", "ThenIf")
+             * expect(V"EndCmd", "EndIf");
+  IfPart     = Vs"IfCmd"
+             * expect(Vs"Expression", "ExprIf")
+             * expect(Vs"ThenCmd", "ThenIf")
              * V"Block";
-  ElseIfPart = tk"ElIfCmd"
-             * expect(V"Expression", "ExprEIf")
-             * expect(tk"ThenCmd", "ThenEIf")
+  ElseIfPart = Vs"ElIfCmd"
+             * expect(Vs"Expression", "ExprEIf")
+             * expect(Vs"ThenCmd", "ThenEIf")
              * V"Block";
-  ElsePart   = tk"ElseCmd"
+  ElsePart   = Vs"ElseCmd"
              * V"Block";
 
   -- do ... end
-  DoStat = tk"DoCmd"
+  DoStat = Vs"DoCmd"
          * V"Block"
-         * expect(tk"EndCmd", "EndDo");
+         * expect(V"EndCmd", "EndDo");
 
   -- while ... do ... end
-  WhileStat = tk"WhileCmd" * expect(V"Expression", "ExprWhile")
-            * V"WhileBody";
-  WhileBody = expect(tk"DoCmd", "DoWhile")
+  WhileStat = Vs"WhileCmd"
+            * expect(V"Expression", "ExprWhile")
+            * sV"WhileBody";
+  WhileBody = expect(Vs"DoCmd", "DoWhile")
             * V"Block"
-            * expect(tk"EndCmd", "EndWhile");
+            * expect(V"EndCmd", "EndWhile");
 
   -- repeat ... until
-  RepeatStat = tk"RepeatCmd"
+  RepeatStat = Vs"RepeatCmd"
              * V"Block"
-             * expect(tk"UntilCmd", "UntilRep") * expect(V"Expression", "ExprRep");
+             * expect(Vs"UntilCmd", "UntilRep")
+             * expect(V"Expression", "ExprRep");
 
   -- for ... do ... end
-  ForStat     = tk"ForCmd" * expect(V"ForNumSpec" + V"ForInSpec", "ForRange")
+  ForStat     = Vs"ForCmd"
+              * expect(Vs"ForNumSpec" + Vs"ForInSpec", "ForRange")
               * V"ForBody";
-  ForInSpec   = V"NameList"
-              * expect(tk"InCmd", "InFor")
+  ForInSpec   = Vs"NameList"
+              * expect(Vs"InCmd", "InFor")
               * expect(V"ExprList", "EListFor");
-  ForNumSpec  = tk"Name"
-              * tk"AssignOp"
+  ForNumSpec  = Vs"Name"
+              * Vs"AssignOp"
               * V"ForNumRange";
-  ForNumRange = expect(V"Expression", "ExprFor1")
-              * expect(tk"Comma", "CommaFor")
+  ForNumRange = expect(Vs"Expression", "ExprFor1")
+              * expect(Vs"Comma", "CommaFor")
               * expect(V"Expression", "ExprFor2")
-              * (tk"Comma" * expect(V"Expression", "ExprFor3"))^-1;
-  ForBody     = expect(tk"DoCmd", "DoFor")
+              * (sVs"Comma" * expect(V"Expression", "ExprFor3"))^-1;
+  ForBody     = expect(Vs"DoCmd", "DoFor")
               * V"Block"
-              * expect(tk"EndCmd", "EndFor");
+              * expect(V"EndCmd", "EndFor");
 
   -- local ...
-  LocalStat = tk"LocalCmd" * expect(V"LocalFunc" + V"LocalVar", "DefLocal");
-  LocalFunc = tk"FuncCmd" * expect(tk"Name", "NameLFunc") * V"FuncBody";
-  LocalVar  = V"NameList" * ( tk"AssignOp" * expect(V"ExprList", "EListLAssign")
+  LocalStat = Vs"LocalCmd" * expect(V"LocalFunc" + V"LocalVar", "DefLocal");
+  LocalFunc = Vs"FuncCmd" * expect(Vs"Name", "NameLFunc") * V"FuncBody";
+  LocalVar  = V"NameList" * ( sVs"AssignOp" * expect(V"ExprList", "EListLAssign")
                             + P(true) -- or empty
                             );
 
   -- ... = ...
-  Assignment  = V"VarList" * tk"AssignOp" * expect(V"ExprList", "EListAssign");
+  Assignment  = Vs"VarList"
+              * Vs"AssignOp"
+              * expect(V"ExprList", "EListAssign");
 
   -- function ... (...) ... end
-  FuncStat    = tk"FuncCmd" * expect(V"FuncName", "FuncName") * V"FuncBody";
-  FuncName    = tk"Name"
-              * (V"FieldIndex")^0
-              * (V"MethodIndex")^-1;
-  FuncBody    = V"FuncParams"
+  FuncStat    = Vs"FuncCmd" * expect(Vs"FuncName", "FuncName") * V"FuncBody";
+  FuncName    = V"Name"
+              * (sV"FieldIndex")^0
+              * (sV"MethodIndex")^-1;
+  FuncBody    = Vs"FuncParams"
               * V"Block"
-              * expect(tk"EndCmd", "EndFunc");
-  FuncParams  = expect(tk"ParenOpen", "OParenPList")
-              * V"FuncParSpec"
-              * expect(tk"ParenClose", "CParenPList");
-  FuncParSpec = V"FuncParName" + tk"Dots" + P(true);
-  FuncParName = V"NameList" * (tk"Comma" * expect(tk"Dots", "FuncParSpec"))^-1;
+              * expect(V"EndCmd", "EndFunc");
+  FuncParams  = expect(Vs"ParenOpen", "OParenPList")
+              * Vs"FuncParSpec"
+              * expect(V"ParenClose", "CParenPList");
+  FuncParSpec = V"FuncParName" + V"Dots" + P(true);
+  FuncParName = V"NameList"
+              * (sVs"Comma" * expect(V"Dots", "FuncParSpec"))^-1;
 
-  LabelStat  = tk"LabelEdge"
-             * expect(tk"Identifier", "Label")
-             * expect(tk"LabelEdge", "CloseLabel");
-  GoToStat   = tk"GotoCmd" * expect(tk"Identifier", "Goto");
-  BreakStat  = tk"BreakCmd";
-  RetStat    = tk"ReturnCmd" * commaSep(V"Expression", "RetList")^-1 * tk"Semicolon"^-1;
+  LabelStat  = Vs"LabelEdge"
+             * expect(Vs"Identifier", "Label")
+             * expect(V"LabelEdge", "CloseLabel");
+  GoToStat   = Vs"GotoCmd" * expect(V"Identifier", "Goto");
 
-  NameList  = commaSep(tk"Name");
-  VarList   = commaSep(V"VarExpr", "VarList");
-  ExprList  = commaSep(V"Expression", "ExprList");
+  BreakStat  = V"BreakCmd";
+
+  RetStat    = Vs"ReturnCmd"
+             * commaSep(V"Expression", "RetList")^-1
+             * (sV"Semicolon")^-1;
+
+  NameList = commaSep(V"Name");
+  VarList  = commaSep(V"VarExpr", "VarList");
+  ExprList = commaSep(V"Expression", "ExprList");
 
   Expression  = V"OrExpr";
-  OrExpr      = sepBy(V"AndExpr", tk"OrOp", "OrExpr");
-  AndExpr     = sepBy(V"RelExpr", tk"AndOp", "AndExpr");
-  RelExpr     = sepBy(V"BOrExpr", tk"RelOp", "RelExpr");
-  BOrExpr     = sepBy(V"BXorExpr", tk"BOrOp", "BOrExpr");
-  BXorExpr    = sepBy(V"BAndExpr", tk"BXorOp", "BXorExpr");
-  BAndExpr    = sepBy(V"ShiftExpr", tk"BAndOp", "BAndExpr");
-  ShiftExpr   = sepBy(V"ConcatExpr", tk"ShiftOp", "ShiftExpr");
-  ConcatExpr  = V"AddExpr" * (tk"ConcatOp" * expect(V"ConcatExpr", "ConcatExpr"))^-1;
-  AddExpr     = sepBy(V"MulExpr", tk"SumOp", "AddExpr");
-  MulExpr     = sepBy(V"UnOrPowExpr", tk"ProdOp", "MulExpr");
+  OrExpr      = sepBy(V"AndExpr", V"OrOp", "OrExpr");
+  AndExpr     = sepBy(V"RelExpr", V"AndOp", "AndExpr");
+  RelExpr     = sepBy(V"BOrExpr", V"RelOp", "RelExpr");
+  BOrExpr     = sepBy(V"BXorExpr", V"BOrOp", "BOrExpr");
+  BXorExpr    = sepBy(V"BAndExpr", V"BXorOp", "BXorExpr");
+  BAndExpr    = sepBy(V"ShiftExpr", V"BAndOp", "BAndExpr");
+  ShiftExpr   = sepBy(V"ConcatExpr", V"ShiftOp", "ShiftExpr");
+  ConcatExpr  = V"AddExpr"
+              * (sVs"ConcatOp" * expect(V"ConcatExpr", "ConcatExpr"))^-1;
+  AddExpr     = sepBy(V"MulExpr", V"SumOp", "AddExpr");
+  MulExpr     = sepBy(V"UnOrPowExpr", V"ProdOp", "MulExpr");
   UnOrPowExpr = V"UnaryExpr" + V"PowExpr";
-  UnaryExpr   = tk"UnaryOp" * expect(V"UnOrPowExpr", "UnaryExpr");
-  PowExpr     = V"SimpleExpr" * (tk"PowOp" * expect(V"UnOrPowExpr", "PowExpr"))^-1;
+  UnaryExpr   = Vs"UnaryOp" * expect(V"UnOrPowExpr", "UnaryExpr");
+  PowExpr     = V"SimpleExpr"
+              * (sVs"PowOp" * expect(V"UnOrPowExpr", "PowExpr"))^-1;
 
-  SimpleExpr = tk"Nil"
-             + tk"Boolean"
-             + tk"Number"
-             + tk"String"
-             + tk"Dots"
+  SimpleExpr = V"Nil"
+             + V"Dots"
+             + V"Boolean"
+             + V"Number"
+             + V"String"
              + V"FuncDef"
              + V"Table"
              + V"SuffixedExpr";
 
-  --CallExpr  = Cmt(V"SuffixedExpr", function(s, i, exp, ...) return exp.tag == "Call" or exp.tag == "Invoke", exp end);
-  --VarExpr   = Cmt(V"SuffixedExpr", function(s, i, exp, ...) return exp.tag == "Name" or exp.tag == "Index", exp end);
+  CallExpr  = Cmt(V"SuffixedExpr", function(s, i, ...) return string.sub(s, i-1, i-1) == ")", ... end);
+  VarExpr   = Cmt(V"SuffixedExpr", function(s, i, ...) return string.sub(s, i-1, i-1) ~= ")", ... end);
 
-  SuffixedExpr  = V"PrimaryExpr" * (V"Index" + V"CallOp")^0;
-  PrimaryExpr   = tk"Name" + V"ParenExpr";
-  ParenExpr     = tk"ParenOpen" * expect(V"Expression", "ExprParen") * expect(tk"ParenClose", "CParenExpr");
+  SuffixedExpr  = V"PrimaryExpr" * (V"Skip" * (V"Index" + V"Call"))^0;
+  PrimaryExpr   = V"Name" + V"ParenExpr";
+  ParenExpr     = Vs"ParenOpen" * expect(V"Expression", "ExprParen") * expect(V"ParenClose", "CParenExpr");
   Index         = V"FieldIndex" + V"ArrayIndex";
-  FieldIndex    = tk"FieldOp" * expect(tk"Field", "NameIndex");
-  ArrayIndex    = tk"IndexOpen" * expect(V"Expression", "ExprIndex") * expect(tk"IndexClose", "CBracketIndex");
-  CallOp        = V"Invoke" + V"Call";
-  Invoke        = V"MethodIndex" * expect(V"FuncArgs", "MethArgs");
-  Call          = V"FuncArgs";
-  MethodIndex   = tk"MethodOp" * expect(tk"Field", "NameMeth");
+  FieldIndex    = Vs"FieldOp" * expect(V"Field", "NameIndex");
+  ArrayIndex    = Vs"IndexOpen" * expect(Vs"Expression", "ExprIndex") * expect(V"IndexClose", "CBracketIndex");
+  Call          = V"MethodCall" + V"FuncCall";
+  FuncCall      = V"FuncArgs";
+  MethodCall    = Vs"MethodIndex" * expect(V"FuncArgs", "MethArgs");
+  MethodIndex   = Vs"MethodOp" * expect(V"Field", "NameMeth");
 
-  FuncDef   = tk"FuncCmd" * V"FuncBody";
-  FuncArgs  = tk"ParenOpen" * commaSep(V"Expression", "ArgList")^-1 * expect(tk"ParenClose", "CParenArgs")
+  FuncDef   = Vs"FuncCmd" * V"FuncBody";
+  FuncArgs  = Vs"ParenOpen" * commaSep(V"Expression", "ArgList")^-1 * expect(V"ParenClose", "CParenArgs")
             + V"Table"
-            + tk"String";
+            + V"String";
 
-  Table       = tk"TableOpen" * V"TabEntries"^-1 * expect(tk"TableClose", "CBraceTable");
+  -- Tables
+  Table       = Vs"TableOpen" * V"TabEntries"^-1 * expect(sV"TableClose", "CBraceTable");
   TabEntries  = sepBy(V"TabEntryPair" + V"TabEntryVal", V"TabEntrySep") * V"TabEntrySep"^-1;
-  TabEntryPair = V"TabEntryKey" * expect(tk"AssignOp", "EqField") * expect(V"TabEntryVal", "ExprField");
-  TabEntryKey  = tk"IndexOpen" * expect(V"Expression", "ExprFKey") * expect(tk"IndexClose", "CBracketFKey")
-               + tk"Field" * #V"AssignOp";
+  TabEntryPair = Vs"TabEntryKey" * expect(Vs"AssignOp", "EqField") * expect(V"TabEntryVal", "ExprField");
+  TabEntryKey  = Vs"IndexOpen" * expect(Vs"Expression", "ExprFKey") * expect(V"IndexClose", "CBracketFKey")
+               + V"Field" * #(sV"AssignOp");
   TabEntryVal  = V"Expression";
-  TabEntrySep  = tk"Comma" + tk"Semicolon";
+  TabEntrySep  = V"Comma" + V"Semicolon";
 
   Name  = V"Identifier";
   Field = V"Identifier";

@@ -2512,7 +2512,7 @@ test.lua:1:14: syntax error, expected a field name after '.'
 ]=]
 
 r = parse(s)
-assert(r == e, r)
+assert(r == e)
 
 s = [=[
 function foo.1() end
@@ -3446,7 +3446,7 @@ s = [=[
 foo(arg1 arg2)
 ]=]
 e = [=[
-test.lua:1:10: syntax error, expected ')' to close the argument list
+test.lua:1:9: syntax error, expected ')' to close the argument list
 ]=]
 
 r = parse(s)
@@ -3472,7 +3472,7 @@ nums = {
 }
 ]=]
 e = [=[
-test.lua:4:3: syntax error, expected '}' to close the table constructor
+test.lua:4:1: syntax error, expected '}' to close the table constructor
 ]=]
 
 r = parse(s)
