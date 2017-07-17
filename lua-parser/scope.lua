@@ -4,15 +4,15 @@ This module implements functions that handle scoping rules
 local scope = {}
 
 function scope.lineno (s, i)
-  if i == 1 then return 1, 1 end
-  local l, lastline = 0, ""
-  s = s:sub(1, i) .. "\n"
-  for line in s:gmatch("[^\n]*[\n]") do
-    l = l + 1
-    lastline = line
+  local l, p = 1, 1
+  while true do
+    local f = string.find(s, "\n", p, true)
+    if f == nil or f >= i then
+      break
+    end
+    l, p = l+1, f+1
   end
-  local c = lastline:len() - 1
-  return l, c ~= 0 and c or 1
+  return l, 1+i-p
 end
 
 function scope.new_scope (env)
