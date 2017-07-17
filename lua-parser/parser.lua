@@ -220,8 +220,8 @@ local G = fill(grammar, { V"Lua",
   BAndExpr    = chainOp(grammar.BAndExpr);
   ShiftExpr   = chainOp(grammar.ShiftExpr);
   ConcatExpr  = grammar.ConcatExpr / binaryOp;
-  AddExpr     = chainOp(grammar.AddExpr);
-  MulExpr     = chainOp(grammar.MulExpr);
+  SumExpr     = chainOp(grammar.SumExpr);
+  ProdExpr    = chainOp(grammar.ProdExpr);
   UnaryExpr   = grammar.UnaryExpr / unaryOp;
   PowExpr     = grammar.PowExpr / binaryOp;
 
