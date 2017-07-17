@@ -58,7 +58,7 @@ e = [=[
 ]=]
 
 r = parse(s)
---assert(r == e)
+assert(r == e)
 
 -- floating points
 
@@ -126,7 +126,7 @@ e = [=[
 ]=]
 
 r = parse(s)
-assert(r == fixint(e), r)
+assert(r == fixint(e))
 
 -- integers
 
@@ -687,7 +687,7 @@ e = [=[
 ]=]
 
 r = parse(s)
---assert(r == e)
+assert(r == e)
 
 s = [=[
 for i=1,10 do
@@ -1108,7 +1108,7 @@ e = [=[
 ]=]
 
 r = parse(s)
---assert(r == e)
+assert(r == e)
 
 -- repeat
 
@@ -3784,6 +3784,6 @@ e = [=[
 ]=]
 
 r = parse(s)
---assert(r == e)
+assert(r == e)
 
 print("OK")
