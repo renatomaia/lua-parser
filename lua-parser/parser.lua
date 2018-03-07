@@ -290,11 +290,14 @@ local G = fill(grammar, { V"Lua",
   PowOp     = grammar.PowOp     / "pow";
 })
 
-local parser = {}
+local errors = require("lua-parser.errors")
+local geterrmsg = errors.getmsgbyidx
 
 local validator = require("lua-parser.validator")
 local validate = validator.validate
 local syntaxerror = validator.syntaxerror
+
+local parser = {}
 
 function parser.parse (subject, filename)
   local errorinfo = { subject = subject, filename = filename }
@@ -302,7 +305,7 @@ function parser.parse (subject, filename)
   local ast, erridx, sfail = lpeg.match(G, subject, nil, errorinfo)
   if not ast then
     local errpos = #subject-#sfail+1
-    local errmsg = lua53.errors[erridx][2]
+    local errmsg = geterrmsg(erridx)
     return ast, syntaxerror(errorinfo, errpos, errmsg)
   end
   return validate(ast, errorinfo)

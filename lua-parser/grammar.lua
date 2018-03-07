@@ -1,119 +1,113 @@
 local lpeg = require "lpeglabel"
-
-local P, S, V = lpeg.P, lpeg.S, lpeg.V
-local C, Carg, Cb, Cc = lpeg.C, lpeg.Carg, lpeg.Cb, lpeg.Cc
-local Cf, Cg, Cmt, Cp, Cs, Ct = lpeg.Cf, lpeg.Cg, lpeg.Cmt, lpeg.Cp, lpeg.Cs, lpeg.Ct
-local Lc, T = lpeg.Lc, lpeg.T
-
-local alpha, digit, alnum = lpeg.alpha, lpeg.digit, lpeg.alnum
-local xdigit = lpeg.xdigit
+local C = lpeg.C
+local Cb = lpeg.Cb
+local Cg = lpeg.Cg
+local Cmt = lpeg.Cmt
+local P = lpeg.P
+local S = lpeg.S
+local V = lpeg.V
+local alnum = lpeg.alnum
+local alpha = lpeg.alpha
+local digit = lpeg.digit
 local space = lpeg.space
+local xdigit = lpeg.xdigit
+
+local errors = require "lua-parser.errors"
+local newerr = errors.newerror
+local throw = errors.throw
 
 -- error message auxiliary functions
 
-local labels = {
-  { "ErrExtra", "unexpected character(s), expected EOF" },
-  { "ErrInvalidStat", "unexpected token, invalid start of statement" },
+newerr("EndOfInput", "unexpected character(s), expected EOF")
+newerr("InvalidStatement", "unexpected token, invalid start of statement")
 
-  { "ErrEndIf", "expected 'end' to close the if statement" },
-  { "ErrExprIf", "expected a condition after 'if'" },
-  { "ErrThenIf", "expected 'then' after the condition" },
-  { "ErrExprEIf", "expected a condition after 'elseif'" },
-  { "ErrThenEIf", "expected 'then' after the condition" },
+newerr("EndIf", "expected 'end' to close the if statement")
+newerr("ExprIf", "expected a condition after 'if'")
+newerr("ThenIf", "expected 'then' after the condition")
+newerr("ExprEIf", "expected a condition after 'elseif'")
+newerr("ThenEIf", "expected 'then' after the condition")
 
-  { "ErrEndDo", "expected 'end' to close the do block" },
-  { "ErrExprWhile", "expected a condition after 'while'" },
-  { "ErrDoWhile", "expected 'do' after the condition" },
-  { "ErrEndWhile", "expected 'end' to close the while loop" },
-  { "ErrUntilRep", "expected 'until' at the end of the repeat loop" },
-  { "ErrExprRep", "expected a conditions after 'until'" },
+newerr("EndDo", "expected 'end' to close the do block")
+newerr("ExprWhile", "expected a condition after 'while'")
+newerr("DoWhile", "expected 'do' after the condition")
+newerr("EndWhile", "expected 'end' to close the while loop")
+newerr("UntilRep", "expected 'until' at the end of the repeat loop")
+newerr("ExprRep", "expected a conditions after 'until'")
 
-  { "ErrForRange", "expected a numeric or generic range after 'for'" },
-  { "ErrEndFor", "expected 'end' to close the for loop" },
-  { "ErrExprFor1", "expected a starting expression for the numeric range" },
-  { "ErrCommaFor", "expected ',' to split the start and end of the range" },
-  { "ErrExprFor2", "expected an ending expression for the numeric range" },
-  { "ErrExprFor3", "expected a step expression for the numeric range after ','" },
-  { "ErrInFor", "expected '=' or 'in' after the variable(s)" },
-  { "ErrEListFor", "expected one or more expressions after 'in'" },
-  { "ErrDoFor", "expected 'do' after the range of the for loop" },
+newerr("ForRange", "expected a numeric or generic range after 'for'")
+newerr("EndFor", "expected 'end' to close the for loop")
+newerr("ExprFor1", "expected a starting expression for the numeric range")
+newerr("CommaFor", "expected ',' to split the start and end of the range")
+newerr("ExprFor2", "expected an ending expression for the numeric range")
+newerr("ExprFor3", "expected a step expression for the numeric range after ','")
+newerr("InFor", "expected '=' or 'in' after the variable(s)")
+newerr("EListFor", "expected one or more expressions after 'in'")
+newerr("DoFor", "expected 'do' after the range of the for loop")
 
-  { "ErrDefLocal", "expected a function definition or assignment after local" },
-  { "ErrNameLFunc", "expected a function name after 'function'" },
-  { "ErrEListLAssign", "expected one or more expressions after '='" },
-  { "ErrEListAssign", "expected one or more expressions after '='" },
+newerr("DefLocal", "expected a function definition or assignment after local")
+newerr("NameLFunc", "expected a function name after 'function'")
+newerr("EListLAssign", "expected one or more expressions after '='")
+newerr("EListAssign", "expected one or more expressions after '='")
 
-  { "ErrFuncName", "expected a function name after 'function'" },
-  { "ErrOParenPList", "expected '(' for the parameter list" },
-  { "ErrCParenPList", "expected ')' to close the parameter list" },
-  { "ErrEndFunc", "expected 'end' to close the function body" },
-  { "ErrFuncParSpec", "expected a variable name or '...' after ','" },
+newerr("FuncName", "expected a function name after 'function'")
+newerr("OParenPList", "expected '(' for the parameter list")
+newerr("CParenPList", "expected ')' to close the parameter list")
+newerr("EndFunc", "expected 'end' to close the function body")
+newerr("FuncParSpec", "expected a variable name or '...' after ','")
 
-  { "ErrLabel", "expected a label name after '::'" },
-  { "ErrCloseLabel", "expected '::' after the label" },
-  { "ErrGoto", "expected a label after 'goto'" },
-  { "ErrRetList", "expected an expression after ',' in the return statement" },
+newerr("Label", "expected a label name after '::'")
+newerr("CloseLabel", "expected '::' after the label")
+newerr("Goto", "expected a label after 'goto'")
+newerr("RetList", "expected an expression after ',' in the return statement")
 
-  { "ErrVarList", "expected a variable name after ','" },
-  { "ErrExprList", "expected an expression after ','" },
+newerr("VarList", "expected a variable name after ','")
+newerr("ExprList", "expected an expression after ','")
 
-  { "ErrOrExpr", "expected an expression after 'or'" },
-  { "ErrAndExpr", "expected an expression after 'and'" },
-  { "ErrRelExpr", "expected an expression after the relational operator" },
-  { "ErrBOrExpr", "expected an expression after '|'" },
-  { "ErrBXorExpr", "expected an expression after '~'" },
-  { "ErrBAndExpr", "expected an expression after '&'" },
-  { "ErrShiftExpr", "expected an expression after the bit shift" },
-  { "ErrConcatExpr", "expected an expression after '..'" },
-  { "ErrSumExpr", "expected an expression after the additive operator" },
-  { "ErrProdExpr", "expected an expression after the multiplicative operator" },
-  { "ErrUnaryExpr", "expected an expression after the unary operator" },
-  { "ErrPowExpr", "expected an expression after '^'" },
+newerr("OrExpr", "expected an expression after 'or'")
+newerr("AndExpr", "expected an expression after 'and'")
+newerr("RelExpr", "expected an expression after the relational operator")
+newerr("BOrExpr", "expected an expression after '|'")
+newerr("BXorExpr", "expected an expression after '~'")
+newerr("BAndExpr", "expected an expression after '&'")
+newerr("ShiftExpr", "expected an expression after the bit shift")
+newerr("ConcatExpr", "expected an expression after '..'")
+newerr("SumExpr", "expected an expression after the additive operator")
+newerr("ProdExpr", "expected an expression after the multiplicative operator")
+newerr("UnaryExpr", "expected an expression after the unary operator")
+newerr("PowExpr", "expected an expression after '^'")
 
-  { "ErrExprParen", "expected an expression after '('" },
-  { "ErrCParenExpr", "expected ')' to close the expression" },
-  { "ErrNameIndex", "expected a field name after '.'" },
-  { "ErrExprIndex", "expected an expression after '['" },
-  { "ErrCBracketIndex", "expected ']' to close the indexing expression" },
-  { "ErrNameMeth", "expected a method name after ':'" },
-  { "ErrMethArgs", "expected some arguments for the method call (or '()')" },
+newerr("ExprParen", "expected an expression after '('")
+newerr("CParenExpr", "expected ')' to close the expression")
+newerr("NameIndex", "expected a field name after '.'")
+newerr("ExprIndex", "expected an expression after '['")
+newerr("CBracketIndex", "expected ']' to close the indexing expression")
+newerr("NameMeth", "expected a method name after ':'")
+newerr("MethArgs", "expected some arguments for the method call (or '()')")
 
-  { "ErrArgList", "expected an expression after ',' in the argument list" },
-  { "ErrCParenArgs", "expected ')' to close the argument list" },
+newerr("ArgList", "expected an expression after ',' in the argument list")
+newerr("CParenArgs", "expected ')' to close the argument list")
 
-  { "ErrCBraceTable", "expected '}' to close the table constructor" },
-  { "ErrEqField", "expected '=' after the table key" },
-  { "ErrExprField", "expected an expression after '='" },
-  { "ErrExprFKey", "expected an expression after '[' for the table key" },
-  { "ErrCBracketFKey", "expected ']' to close the table key" },
+newerr("CBraceTable", "expected '}' to close the table constructor")
+newerr("EqField", "expected '=' after the table key")
+newerr("ExprField", "expected an expression after '='")
+newerr("ExprFKey", "expected an expression after '[' for the table key")
+newerr("CBracketFKey", "expected ']' to close the table key")
 
-  { "ErrDigitHex", "expected one or more hexadecimal digits after '0x'" },
-  { "ErrDigitDeci", "expected one or more digits after the decimal point" },
-  { "ErrDigitExpo", "expected one or more digits for the exponent" },
+newerr("DigitHex", "expected one or more hexadecimal digits after '0x'")
+newerr("DigitDeci", "expected one or more digits after the decimal point")
+newerr("DigitExpo", "expected one or more digits for the exponent")
 
-  { "ErrQuote", "unclosed string" },
-  { "ErrHexEsc", "expected exactly two hexadecimal digits after '\\x'" },
-  { "ErrOBraceUEsc", "expected '{' after '\\u'" },
-  { "ErrDigitUEsc", "expected one or more hexadecimal digits for the UTF-8 code point" },
-  { "ErrCBraceUEsc", "expected '}' after the code point" },
-  { "ErrEscSeq", "invalid escape sequence" },
-  { "ErrCloseLStr", "unclosed long string" },
-}
-
-local function throw(label)
-  label = "Err" .. label
-  for i, labelinfo in ipairs(labels) do
-    if labelinfo[1] == label then
-      return T(i)
-    end
-  end
-  error("Label not found: " .. label)
-end
+newerr("Quote", "unclosed string")
+newerr("HexEsc", "expected exactly two hexadecimal digits after '\\x'")
+newerr("OBraceUEsc", "expected '{' after '\\u'")
+newerr("DigitUEsc", "expected one or more hexadecimal digits for the UTF-8 code point")
+newerr("CBraceUEsc", "expected '}' after the code point")
+newerr("InvalidQuoteEscape", "invalid escape sequence")
+newerr("CloseLStr", "unclosed long string")
 
 local function expect (patt, label)
   return patt + throw(label)
 end
-
 
 -- regular combinators and auxiliary functions
 
@@ -131,12 +125,12 @@ local function commaSep (patt, label)
   return sepBy(patt, "Comma", label)
 end
 
-local grammar = { V"Lua",
-  Lua      = V"Shebang"^-1 * sV"Block" * expect(P(-1), "Extra");
+local grammar = {
+  Lua      = V"Shebang"^-1 * V"Block" * expect(P(-1), "EndOfInput");
   Shebang  = P"#!" * (P(1) - P"\n")^0;
 
-  Block       = Vs"Stat"^0 * Vs"RetStat"^-1;
-  Stat        = V"IfStat"
+  Block       = V"Skip" * Vs"Statement"^0 * Vs"RetStat"^-1;
+  Statement   = V"IfStat"
               + V"DoStat"
               + V"WhileStat"
               + V"RepeatStat"
@@ -149,7 +143,7 @@ local grammar = { V"Lua",
               + V"CallStat"
               + V"Assignment"
               + V"Semicolon"
-              + -V"BlockEnd" * throw("InvalidStat");
+              + -V"BlockEnd" * throw("InvalidStatement");
   BlockEnd    = P"return" + "end" + "elseif" + "else" + "until" + -1;
 
   -- if ... then ... elseif ... then ... else ... end
@@ -159,17 +153,17 @@ local grammar = { V"Lua",
              * expect(V"EndCmd", "EndIf");
   IfPart     = Vs"IfCmd"
              * expect(Vs"Expression", "ExprIf")
-             * expect(Vs"ThenCmd", "ThenIf")
+             * expect(V"ThenCmd", "ThenIf")
              * V"Block";
   ElseIfPart = Vs"ElIfCmd"
              * expect(Vs"Expression", "ExprEIf")
-             * expect(Vs"ThenCmd", "ThenEIf")
+             * expect(V"ThenCmd", "ThenEIf")
              * V"Block";
-  ElsePart   = Vs"ElseCmd"
+  ElsePart   = V"ElseCmd"
              * V"Block";
 
   -- do ... end
-  DoStat = Vs"DoCmd"
+  DoStat = V"DoCmd"
          * V"Block"
          * expect(V"EndCmd", "EndDo");
 
@@ -177,12 +171,12 @@ local grammar = { V"Lua",
   WhileStat = Vs"WhileCmd"
             * expect(Vs"Expression", "ExprWhile")
             * V"WhileBody";
-  WhileBody = expect(Vs"DoCmd", "DoWhile")
+  WhileBody = expect(V"DoCmd", "DoWhile")
             * V"Block"
             * expect(V"EndCmd", "EndWhile");
 
   -- repeat ... until
-  RepeatStat = Vs"RepeatCmd"
+  RepeatStat = V"RepeatCmd"
              * V"Block"
              * expect(Vs"UntilCmd", "UntilRep")
              * expect(V"Expression", "ExprRep");
@@ -201,7 +195,7 @@ local grammar = { V"Lua",
               * expect(Vs"Comma", "CommaFor")
               * expect(V"Expression", "ExprFor2")
               * (sVs"Comma" * expect(V"Expression", "ExprFor3"))^-1;
-  ForBody     = expect(Vs"DoCmd", "DoFor")
+  ForBody     = expect(V"DoCmd", "DoFor")
               * V"Block"
               * expect(V"EndCmd", "EndFor");
 
@@ -222,7 +216,7 @@ local grammar = { V"Lua",
   FuncName    = V"Name"
               * (sV"FieldIndex")^0
               * (sV"MethodIndex")^-1;
-  FuncBody    = Vs"FuncParams"
+  FuncBody    = V"FuncParams"
               * V"Block"
               * expect(V"EndCmd", "EndFunc");
   FuncParams  = expect(Vs"ParenOpen", "OParenPList")
@@ -348,7 +342,7 @@ local grammar = { V"Lua",
   DbSqBkClose  = "]" * V"DbSqBkEquals" * "]";
   DbSqBkData   = (P(1) - V"DbSqBkAbort")^0;
   DbSqBkAbort  = Cmt("]" * C(V"DbSqBkEquals") * "]" * Cb("DbSqBkEquals"),
-                     function (s, i, closeEq, openEq)
+                     function (_, _, closeEq, openEq)
                        return #openEq == #closeEq
                      end);
   DbSqBkOpLine = P"\n"^-1;
@@ -359,7 +353,7 @@ local grammar = { V"Lua",
   QuoteClose   = S[["']];
   QuoteData    = (V"QuoteEscape" + (P(1)-V"QuoteAbort"))^0;
   QuoteAbort   = P"\n" + Cmt(C(S[["']]) * Cb("QuoteOpen"),
-                             function (s, i, closeQt, openQt)
+                             function (_, _, closeQt, openQt)
                                return openQt == closeQt
                              end);
   QuoteEscape  = V"QtEscSymbol" * ( V"QtEscChar"
@@ -367,7 +361,7 @@ local grammar = { V"Lua",
                                   + V"QtEscHexa"
                                   + V"QtEscUnicode"
                                   + V"CharCodeDec"
-                                  + throw("EscSeq")
+                                  + throw("InvalidQuoteEscape")
                                   );
   QtEscSymbol  = P"\\";
   QtEscChar    = S"abfnrtv\n\r\\\"\'";
@@ -513,5 +507,4 @@ local grammar = { V"Lua",
 
 return {
   grammar = grammar,
-  errors = labels,
 }
