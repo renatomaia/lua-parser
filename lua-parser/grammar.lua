@@ -233,8 +233,8 @@ local grammar = {
 
   BreakStat  = V"BreakCmd";
 
-  RetStat    = Vs"ReturnCmd"
-             * commaSep(V"Expression", "RetList")^-1
+  RetStat    = V"ReturnCmd"
+             * (V"Skip" * commaSep(V"Expression", "RetList"))^-1
              * (sV"Semicolon")^-1;
 
   NameList = commaSep(V"Name");

@@ -114,6 +114,10 @@ local function addDots (params, dots)
   return params
 end
 
+local function fixDbBkOpenLine (data)
+  return string.gsub(data, "^\n", "")
+end
+
 local function fixFuncName (name, ...)
   for i = 1, select("#", ...) do
     local suffix = select(i, ...)
@@ -251,7 +255,7 @@ local G = fill(grammar, { V"Lua",
 
   -- Strings
   String        = tagC("String", grammar.String);
-  DbSqBkData    = C(grammar.DbSqBkData); -- capture only the contents in 'LongString'
+  DbSqBkData    = grammar.DbSqBkData / fixDbBkOpenLine; -- capture only the contents in 'LongString'
   QuoteData     = Cs(grammar.QuoteData); -- capture contents replacing escapes in 'QuoteString'
   QtEscSymbol   = grammar.QtEscSymbol / ""; -- remove backslash
   QtEscChar     = grammar.QtEscChar / escval;

@@ -1190,7 +1190,7 @@ assert(r == e)
 -- tables
 
 s = [=[
-t = { [1] = "alo", alo = 1, 2; }
+t = { [1] = "alo", alo = 1 , 2 ; }
 ]=]
 e = [=[
 { `Set{ { `Id "t" }, { `Table{ `Pair{ `Number "1", `String "alo" }, `Pair{ `String "alo", `Number "1" }, `Number "2" } } } }
