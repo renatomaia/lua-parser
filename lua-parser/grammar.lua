@@ -23,9 +23,8 @@ newerr("InvalidStatement", "unexpected token, invalid start of statement")
 
 newerr("EndIf", "expected 'end' to close the if statement")
 newerr("ExprIf", "expected a condition after 'if'")
-newerr("ThenIf", "expected 'then' after the condition")
 newerr("ExprEIf", "expected a condition after 'elseif'")
-newerr("ThenEIf", "expected 'then' after the condition")
+newerr("ThenIf", "expected 'then' after the condition")
 
 newerr("EndDo", "expected 'end' to close the do block")
 newerr("ExprWhile", "expected a condition after 'while'")
@@ -126,8 +125,12 @@ local function commaSep (patt, label)
 end
 
 local grammar = {
-  Lua      = V"Shebang"^-1 * V"Block" * expect(P(-1), "EndOfInput");
-  Shebang  = P"#!" * (P(1) - P"\n")^0;
+  Lua = V"ShebangStat"^-1 * V"Chunk";
+  Chunk = V"Block" * expect(P(-1), "EndOfInput");
+
+  ShebangStat = V"Shebang" * V"ShebangCmd";
+  Shebang  = P"#!";
+  ShebangCmd  = (P(1) - P"\n")^0;
 
   Block       = V"Skip" * Vs"Statement"^0 * Vs"RetStat"^-1;
   Statement   = V"IfStat"
@@ -153,11 +156,11 @@ local grammar = {
              * expect(V"EndCmd", "EndIf");
   IfPart     = Vs"IfCmd"
              * expect(Vs"Expression", "ExprIf")
-             * expect(V"ThenCmd", "ThenIf")
-             * V"Block";
+             * V"ThenPart";
   ElseIfPart = Vs"ElIfCmd"
              * expect(Vs"Expression", "ExprEIf")
-             * expect(V"ThenCmd", "ThenEIf")
+             * V"ThenPart";
+  ThenPart   = expect(V"ThenCmd", "ThenIf")
              * V"Block";
   ElsePart   = V"ElseCmd"
              * V"Block";
@@ -189,12 +192,14 @@ local grammar = {
               * expect(Vs"InCmd", "InFor")
               * expect(V"ExprList", "EListFor");
   ForNumSpec  = Vs"Name"
-              * Vs"AssignOp"
-              * V"ForNumRange";
-  ForNumRange = expect(Vs"Expression", "ExprFor1")
+              * V"ForNumRange"
+              * sV"ForNumStep"^-1;
+  ForNumRange = Vs"AssignOp"
+              * expect(Vs"Expression", "ExprFor1")
               * expect(Vs"Comma", "CommaFor")
-              * expect(V"Expression", "ExprFor2")
-              * (sVs"Comma" * expect(V"Expression", "ExprFor3"))^-1;
+              * expect(V"Expression", "ExprFor2");
+  ForNumStep  = Vs"Comma"
+              * expect(V"Expression", "ExprFor3");
   ForBody     = expect(V"DoCmd", "DoFor")
               * V"Block"
               * expect(V"EndCmd", "EndFor");
@@ -202,9 +207,8 @@ local grammar = {
   -- local ...
   LocalStat = Vs"LocalCmd" * expect(V"LocalFunc" + V"LocalVar", "DefLocal");
   LocalFunc = Vs"FuncCmd" * expect(Vs"Name", "NameLFunc") * V"FuncBody";
-  LocalVar  = V"NameList" * ( sVs"AssignOp" * expect(V"ExprList", "EListLAssign")
-                            + P(true) -- or empty
-                            );
+  LocalVar  = V"NameList"
+            * (sVs"AssignOp" * expect(V"ExprList", "EListLAssign"))^-1;
 
   -- ... = ...
   Assignment  = Vs"VarList"
@@ -276,17 +280,24 @@ local grammar = {
 
   SuffixedExpr  = V"PrimaryExpr" * (V"Skip" * (V"Index" + V"Call"))^0;
   PrimaryExpr   = V"Name" + V"ParenExpr";
-  ParenExpr     = Vs"ParenOpen" * expect(Vs"Expression", "ExprParen") * expect(V"ParenClose", "CParenExpr");
+  ParenExpr     = Vs"ParenOpen"
+                * expect(Vs"Expression", "ExprParen")
+                * expect(V"ParenClose", "CParenExpr");
   Index         = V"FieldIndex" + V"ArrayIndex";
   FieldIndex    = Vs"FieldOp" * expect(V"Field", "NameIndex");
-  ArrayIndex    = Vs"IndexOpen" * expect(Vs"Expression", "ExprIndex") * expect(V"IndexClose", "CBracketIndex");
+  ArrayIndex    = Vs"IndexOpen"
+                * expect(Vs"Expression", "ExprIndex")
+                * expect(V"IndexClose", "CBracketIndex");
   Call          = V"MethodCall" + V"FuncCall";
   FuncCall      = V"CallArgs";
   MethodCall    = Vs"MethodIndex" * expect(V"CallArgs", "MethArgs");
   MethodIndex   = Vs"MethodOp" * expect(V"Field", "NameMeth");
-  CallArgs      = Vs"ParenOpen" * (commaSep(V"Expression", "ArgList") * V"Skip")^-1 * expect(V"ParenClose", "CParenArgs")
+  CallArgs      = V"ArgList"
                 + V"Table"
                 + V"String";
+  ArgList       = Vs"ParenOpen"
+                * (commaSep(V"Expression", "ArgList") * V"Skip")^-1
+                * expect(V"ParenClose", "CParenArgs");
 
   -- function () ... end
   FuncDef   = Vs"FuncCmd" * V"FuncBody";
@@ -296,7 +307,7 @@ local grammar = {
                 * Vs"TabEntries"^-1
                 * expect(V"TableClose", "CBraceTable");
   TabEntries    = sepBy(V"TabEntryPair" + V"TabEntryValue", "TabEntrySep")
-                * V"TabEntrySep"^-1;
+                * sV"TabEntrySep"^-1;
   TabEntryPair  = Vs"TabEntryKey"
                 * expect(Vs"AssignOp", "EqField")
                 * expect(V"TabEntryValue", "ExprField");
@@ -305,7 +316,7 @@ local grammar = {
   TabEntryArray = Vs"IndexOpen"
                 * expect(Vs"Expression", "ExprFKey")
                 * expect(V"IndexClose", "CBracketFKey");
-  TabEntryField = Vs"Field" * #(V"AssignOp");
+  TabEntryField = V"Field" * #(sV"AssignOp");
   TabEntryValue = V"Expression";
   TabEntrySep   = V"Comma"
                 + V"Semicolon";
@@ -338,14 +349,13 @@ local grammar = {
 
   LongString   = V"DblSqBracket";
   DblSqBracket = V"DbSqBkOpen" * V"DbSqBkData" * expect(V"DbSqBkClose", "CloseLStr");
-  DbSqBkOpen   = "[" * Cg(V"DbSqBkEquals", "DbSqBkEquals") * "[" * V"DbSqBkOpLine";
+  DbSqBkOpen   = "[" * Cg(V"DbSqBkEquals", "DbSqBkEquals") * "[";
   DbSqBkClose  = "]" * V"DbSqBkEquals" * "]";
   DbSqBkData   = (P(1) - V"DbSqBkAbort")^0;
   DbSqBkAbort  = Cmt("]" * C(V"DbSqBkEquals") * "]" * Cb("DbSqBkEquals"),
                      function (_, _, closeEq, openEq)
                        return #openEq == #closeEq
                      end);
-  DbSqBkOpLine = P"\n"^-1;
   DbSqBkEquals = P"="^0;
 
   QuoteString  = V"QuoteOpen" * V"QuoteData" * expect(V"QuoteClose", "Quote");
